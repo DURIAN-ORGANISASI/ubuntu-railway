@@ -2,10 +2,42 @@ FROM ubuntu:26.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TTYD_VERSION=1.7.7
 ARG TARGETARCH
-RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates curl coreutils && rm -rf /var/lib/apt/lists/*
-RUN set -eux; case "${TARGETARCH:-amd64}" in amd64) TTYD_ASSET="ttyd.x86_64" ;; arm64) TTYD_ASSET="ttyd.aarch64" ;; *) echo "Unsupported architecture: ${TARGETARCH}"; exit 1 ;; esac; curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/${TTYD_ASSET}" -o /usr/local/bin/ttyd; chmod +x /usr/local/bin/ttyd; /usr/local/bin/ttyd --version
+
+ENV TZ=Asia/Jakarta \
+    PORT=8080 \
+    PATH="/root/.local/bin:/root/.local/share/uv/bin:/usr/local/bin:/usr/bin:/bin" \
+    HERMES_HOME=/opt/data \
+    HERMES_AUTOSTART=true
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash ca-certificates curl coreutils procps sed git python3 python3-venv python3-pip \
+    build-essential pkg-config libffi-dev libssl-dev xz-utils \
+    && (apt-get install -y --no-install-recommends fastfetch || true) \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) TTYD_ASSET="ttyd.x86_64" ;; \
+      arm64) TTYD_ASSET="ttyd.aarch64" ;; \
+      *) echo "Unsupported architecture: ${TARGETARCH}"; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/${TTYD_ASSET}" -o /usr/local/bin/ttyd; \
+    chmod +x /usr/local/bin/ttyd; \
+    /usr/local/bin/ttyd --version
+
+RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o /tmp/install-hermes.sh \
+    && bash /tmp/install-hermes.sh \
+    && rm -f /tmp/install-hermes.sh \
+    && command -v hermes
+
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod 0755 /usr/local/bin/entrypoint.sh && mkdir -p /data && chmod 0777 /data
-ENV PORT=8080 TZ=Asia/Jakarta
+COPY system-banner.sh /etc/profile.d/00-system-banner.sh
+COPY start-hermes /usr/local/bin/start-hermes
+
+RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/start-hermes /etc/profile.d/00-system-banner.sh \
+    && mkdir -p /data /opt/data \
+    && chmod 0755 /opt/data \
+    && chmod 0777 /data
+
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

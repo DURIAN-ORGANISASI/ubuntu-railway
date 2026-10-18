@@ -1,98 +1,74 @@
-# Ubuntu Personal Railway + Hermes Agent
+# Ubuntu Personal Railway
 
-Container Ubuntu dengan terminal web yang dilindungi username/password, banner sistem otomatis seperti neofetch/fastfetch, dan Hermes Agent CLI. Saat konfigurasi Hermes selesai, Gateway dapat dimulai otomatis ketika service Railway start.
+Container Ubuntu serbaguna dengan terminal web yang dilindungi username/password. Dirancang untuk deploy dari GitHub ke Railway dan diakses melalui domain Railway atau custom domain milikmu. Saat masuk terminal, banner sistem bergaya neofetch/fastfetch muncul otomatis.
 
-> **Bukan VPS penuh.** Railway menjalankan container aplikasi. Repo ini menyediakan terminal berbasis browser, bukan desktop Ubuntu/GUI atau jaminan akses SSH tradisional.
+> **Bukan VPS penuh.** Railway menjalankan container aplikasi. Repo ini menyediakan terminal shell berbasis browser, bukan desktop Ubuntu/GUI dan bukan jaminan akses SSH tradisional.
 
 ## Fitur
 
 - Ubuntu 26.04
-- Terminal browser menggunakan `ttyd` dan autentikasi username/password
-- Banner otomatis saat login: logo Ubuntu, OS, kernel, uptime, CPU, RAM, disk, timezone dan status Hermes
-- `fastfetch` dipakai bila tersedia; banner Bash fallback digunakan jika tidak tersedia
-- Hermes Agent CLI dipasang saat image dibangun
-- Hermes Gateway auto-start dengan restart loop jika `HERMES_HOME/config.yaml` sudah tersedia
+- Terminal browser menggunakan `ttyd`
+- Autentikasi username/password melalui Railway Variables
+- Banner sistem otomatis saat login: logo bergaya Ubuntu, OS, kernel, uptime, CPU, RAM, disk, shell, dan timezone
+- `fastfetch` digunakan jika tersedia; skrip Bash fallback tetap menampilkan informasi sistem
+- Tool CLI umum: Git, curl, Python 3, pip, venv, compiler/build tools, dan utilitas shell
+- Direktori kerja `/data` (Volume persisten opsional)
 - Zona waktu default `Asia/Jakarta`
+- Tidak memasukkan API key atau token provider tertentu secara hardcode
 
 ## Variabel Railway
 
-Buka **Railway → project → service → Variables** lalu isi:
+Buka **Railway → project → service → Variables**, lalu tambahkan:
 
 | Variable | Wajib? | Nilai |
 |---|---:|---|
-| `TERMINAL_USER` | Ya | Username login terminal, tanpa karakter `: ` |
-| `TERMINAL_PASSWORD` | Ya | Password unik acak minimal 16 karakter; 24–40 karakter disarankan |
+| `TERMINAL_USER` | Ya | Username login terminal, tanpa karakter titik dua (`:`) |
+| `TERMINAL_PASSWORD` | Ya | Password unik minimal 16 karakter; 24–40 karakter disarankan |
 | `TZ` | Opsional | `Asia/Jakarta` |
-| `HERMES_HOME` | Opsional | Default `/opt/data` |
-| `HERMES_AUTOSTART` | Opsional | `true` untuk auto-start Gateway (default), atau `false` untuk menonaktifkan |
 | `PORT` | Otomatis | Biarkan Railway menyediakannya |
 
-Jangan commit password, API key, atau token ke GitHub. Konfigurasikan provider dan token channel melalui CLI Hermes.
+Jangan commit password asli ke GitHub, README, atau file `.env` yang di-commit. Jika password pernah bocor, ganti di Railway Variables lalu restart/redeploy service.
 
 ## Deploy ke Railway
 
-1. Pastikan Railway membangun dari `Dockerfile` di root repository.
-2. Pilih **Deploy from GitHub Repo** dan hubungkan repo ini.
-3. Isi `TERMINAL_USER` dan `TERMINAL_PASSWORD` di Railway Variables.
-4. Generate domain di **Settings → Networking**.
-5. Buka domain lalu login memakai username/password tadi.
-
-## Setup Hermes pertama kali
-
-Dari terminal web, jalankan:
-
-```bash
-hermes --help
-hermes setup
-```
-
-Ikuti wizard untuk provider/model serta API key. Untuk mengonfigurasi Telegram/Discord, jalankan:
-
-```bash
-hermes gateway setup
-```
-
-Setelah konfigurasi selesai, restart service Railway. Entrypoint akan memeriksa file `${HERMES_HOME}/config.yaml` dan mencoba menjalankan `hermes gateway` otomatis. Untuk mencoba menjalankan Gateway secara manual dari terminal gunakan:
-
-```bash
-start-hermes
-```
-
-Auto-start hanya berjalan jika file konfigurasi berada di `HERMES_HOME/config.yaml`. Pastikan hasil wizard Hermes memang tersimpan di lokasi tersebut.
+1. Buka [Railway](https://railway.com/) dan pilih **New Project → Deploy from GitHub Repo**.
+2. Pilih repository ini dan pastikan Railway membangun menggunakan `Dockerfile` di root.
+3. Buka service → **Variables**. Isi `TERMINAL_USER` dan `TERMINAL_PASSWORD`. Atur `TZ=Asia/Jakarta` bila diperlukan.
+4. Buka **Settings → Networking → Generate Domain** untuk membuat domain `*.up.railway.app`.
+5. Buka domain tersebut. Browser akan meminta username dan password.
 
 ## Banner otomatis
 
-Tidak perlu mengetik `neofetch` atau perintah lain. Skrip `/etc/profile.d/00-system-banner.sh` dipanggil otomatis oleh Bash saat terminal login interaktif dibuka. Skrip menjalankan `fastfetch` bila terpasang, atau menampilkan banner fallback dengan data aktual dari container.
+Tidak perlu mengetik `neofetch` atau perintah lain. Skrip `/etc/profile.d/00-system-banner.sh` dipanggil otomatis oleh Bash saat terminal login interaktif dibuka. Skrip menjalankan `fastfetch` bila terpasang, atau menampilkan banner fallback dengan data aktual yang terlihat dari container.
 
-CPU dan RAM yang ditampilkan adalah nilai yang terlihat dari container, bukan jaminan kuota paket Railway. Kapasitas disk menunjukkan filesystem yang terpasang ke `/data`.
+Informasi CPU dan RAM berasal dari sistem/container yang terlihat oleh proses, bukan jaminan kuota paket Railway. Kapasitas disk ditampilkan untuk filesystem yang menaungi `/data`.
 
 ## Penyimpanan dan Volume
 
-Filesystem container tanpa Volume tidak dijamin bertahan ketika container dibuat ulang atau redeploy.
+Tanpa Volume, file yang tersimpan di filesystem container tidak dijamin bertahan setelah container dibuat ulang atau redeploy.
 
-- Untuk mempertahankan konfigurasi dan data Hermes, tambahkan Railway Volume dengan **Mount Path** `/opt/data`.
-- Untuk mempertahankan file yang disimpan dari terminal, tambahkan Volume dengan **Mount Path** `/data`.
-- Kedua direktori memiliki tujuan berbeda. Jangan mount path berbeda dari `HERMES_HOME` tanpa memperbarui variable tersebut.
+Untuk menyimpan file penting lintas redeploy, buka **Settings → Volumes → Add Volume** dan tetapkan **Mount Path** ke `/data`. Simpan file terminal di direktori `/data` agar menggunakan Volume tersebut.
 
 ## Keamanan dan batasan
 
-- Terminal publik dilindungi username/password. Gunakan password panjang dan unik.
+- Terminal ini dapat diakses dari internet melalui domain Railway, jadi gunakan password panjang dan unik.
 - Shell berjalan sebagai root di dalam container.
-- Gateway berjalan hanya selama service/container hidup; ini bukan jaminan uptime VPS 24/7.
-- Tanpa Volume yang benar, data konfigurasi atau file dapat hilang saat container dibuat ulang.
-- Build dan runtime perlu diperiksa melalui Deploy Logs Railway; paket eksternal dan perilaku image dapat berubah.
+- Jangan membagikan URL beserta password; rotasi password jika ada dugaan kebocoran.
+- Ini bukan mesin untuk menjalankan desktop GUI, systemd penuh, Docker-in-Docker, atau semua perilaku VPS tradisional.
+- Penggunaan resource dan biaya mengikuti paket serta pemakaian Railway.
+- Keberhasilan build dan runtime tetap perlu diperiksa pada **Deploy Logs** Railway.
 
 ## Troubleshooting
 
-**Service langsung berhenti:** pastikan `TERMINAL_USER` terisi, `TERMINAL_PASSWORD` minimal 16 karakter, dan periksa Deploy Logs.
+**Deployment langsung berhenti:** pastikan `TERMINAL_USER` terisi dan `TERMINAL_PASSWORD` memiliki minimal 16 karakter, lalu periksa Deploy Logs.
+
+**Domain terbuka tetapi terminal tidak muncul:** periksa Deploy Logs, pastikan service berjalan, dan gunakan domain yang terhubung ke port aplikasi. Railway biasanya menyediakan variable `PORT` secara otomatis.
 
 **Banner tidak terlihat:** buka sesi terminal baru dan pastikan shell yang dijalankan adalah Bash login interaktif.
 
-**Hermes tidak otomatis jalan:** selesaikan `hermes setup` dan `hermes gateway setup`, pastikan `${HERMES_HOME}/config.yaml` ada, lalu restart service.
+**File hilang setelah redeploy:** pastikan Railway Volume terpasang tepat di `/data` dan simpan file di direktori itu.
 
-**Telegram/Discord tidak membalas:** periksa token, izin bot, konfigurasi channel, provider/model, dan runtime logs.
-
-**File hilang setelah redeploy:** mount Volume pada `/opt/data` untuk Hermes dan/atau `/data` untuk file terminal.
+**Ingin mengubah password:** ubah `TERMINAL_PASSWORD` di Railway Variables, lalu restart/redeploy service.
 
 ## Struktur repository
 
@@ -101,7 +77,6 @@ Filesystem container tanpa Volume tidak dijamin bertahan ketika container dibuat
 ├── Dockerfile
 ├── entrypoint.sh
 ├── system-banner.sh
-├── start-hermes
 ├── .dockerignore
 ├── .gitignore
 ├── .env.example

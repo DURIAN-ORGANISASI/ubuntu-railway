@@ -34,9 +34,4 @@ else
   printf '%s   +ssssssssssshNMMMyssssssssssss+   %sTimezone:%s %s\n' "$C_ORANGE" "$C_RED" "$C_RESET" "$TZ_NAME"
   printf '%s    `:+ssssssssssssssssss+:`         %sDistro:%s   Ubuntu Personal Railway\n' "$C_ORANGE" "$C_RED" "$C_RESET"
 fi
-
-if pgrep -af '[h]ermes gateway' >/dev/null 2>&1; then
-  printf '%sHermes:%s   %srunning%s\n\n' "$C_RED" "$C_RESET" "$C_GREEN" "$C_RESET"
-else
-  printf '%sHermes:%s   %snot detected / not configured%s\n\n' "$C_RED" "$C_RESET" "$C_ORANGE" "$C_RESET"
-fi
+printf '%sStatus:%s   General-purpose Ubuntu terminal ready\n\n' "$C_GREEN" "$C_RESET"

@@ -1,4 +1,4 @@
-name: Docker build validation
+name: Docker build and runtime validation
 
 on:
   push:
@@ -15,11 +15,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-smoke-test:
     runs-on: ubuntu-latest
+    env:
+      TERMINAL_USER: railway-ci-test
+      TERMINAL_PASSWORD: ci-only-smoke-test-Password-2026
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
       - name: Build the Railway terminal image
         run: docker build --pull --tag railway-terminal-ci:${{ github.sha }} .
+
+      - name: Start the container and verify the web terminal
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          container_name="railway-terminal-smoke"
+          cleanup() { docker rm -f "$container_name" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          docker run --detach \
+            --name "$container_name" \
+            --publish 127.0.0.1::8080 \
+            --env TERMINAL_USER \
+            --env TERMINAL_PASSWORD \
+            --env PORT=8080 \
+            "railway-terminal-ci:${GITHUB_SHA}" >/dev/null
+
+          host_port="$(docker port "$container_name" 8080/tcp | sed 's/.*://')"
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail --user "${TERMINAL_USER}:${TERMINAL_PASSWORD}" \
+              "http://127.0.0.1:${host_port}/" -o /tmp/ttyd-smoke.html 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$ready" != "1" ]] || [[ ! -s /tmp/ttyd-smoke.html ]] || ! grep -qi "ttyd" /tmp/ttyd-smoke.html; then
+            echo "ERROR: terminal HTTP smoke test failed."
+            exit 1
+          fi
+
+          logs="$(docker logs "$container_name" 2>&1 || true)"
+          credential_b64="$(printf '%s' "${TERMINAL_USER}:${TERMINAL_PASSWORD}" | base64 -w0)"
+          if grep -Fq "$TERMINAL_PASSWORD" <<<"$logs" || grep -Fq "$credential_b64" <<<"$logs"; then
+            echo "ERROR: terminal logs appear to contain a credential or its Base64 encoding."
+            exit 1
+          fi
+
+          echo "PASS: container starts, ttyd serves its web page, and logs do not contain the test credentials."

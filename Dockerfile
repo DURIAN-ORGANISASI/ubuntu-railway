@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential pkg-config libffi-dev libssl-dev xz-utils tzdata \
     && (apt-get install -y --no-install-recommends fastfetch || true) \
     && ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime \
-    && printf '%s\\n' "${TZ}" > /etc/timezone \
+    && printf '%s\n' "${TZ}" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 # ttyd 1.7.7 is pinned; the entrypoint suppresses NOTICE logs that include its credential field.

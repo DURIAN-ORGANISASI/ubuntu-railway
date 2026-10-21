@@ -120,7 +120,7 @@ df -h /data
 
 The shell runs as root **inside the container**, not as root on the Railway host. Git, Python, pip/venv, curl, and compiler tools are included in the image.
 
-### 4. Keep files persistent
+## Persistent storage
 
 Without a Volume, files on the container filesystem are not guaranteed to survive container recreation or redeployment. To persist terminal files:
 

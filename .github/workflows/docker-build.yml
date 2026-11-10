@@ -92,7 +92,7 @@ jobs:
           echo "PASS: ${{ matrix.platform }} image starts; ttyd authenticates, runs as UID 10001, /data is writable, and logs omit test credentials."
 
       - name: Scan image for HIGH and CRITICAL vulnerabilities
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE_TAG }}
           format: table

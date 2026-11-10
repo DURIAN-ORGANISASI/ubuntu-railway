@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     passwd util-linux \
     && (apt-get install -y --no-install-recommends fastfetch || true) \
     && ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime \
-    && printf '%s\\n' "${TZ}" > /etc/timezone \
+    && printf '%s\n' "${TZ}" > /etc/timezone \
     && groupadd --gid 10001 terminal \
     && useradd --uid 10001 --gid 10001 --create-home --home-dir /home/terminal --shell /bin/bash terminal \
     && install -d --owner=terminal --group=terminal --mode=0770 /data \

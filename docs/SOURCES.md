@@ -21,3 +21,6 @@ Dokumen ini mencatat sumber teknis serta cakupan lisensi untuk **Ubuntu Personal
 ## Lisensi
 
 File [LICENSE](../LICENSE) melisensikan materi proyek yang tercakup dengan MIT. Lisensi ini tidak mengganti atau memperluas lisensi Ubuntu, ttyd, dependensi sistem, Railway, atau komponen pihak ketiga lainnya. Tinjau lisensi upstream sebelum mendistribusikan ulang image atau komponen tersebut.
+
+- [Trivy Action](https://github.com/aquasecurity/trivy-action): image vulnerability reporting in GitHub Actions.
+- [Dependabot version updates](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates): weekly dependency update checks for Docker and GitHub Actions.

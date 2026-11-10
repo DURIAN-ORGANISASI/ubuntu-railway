@@ -16,16 +16,30 @@ concurrency:
 
 jobs:
   build-and-smoke-test:
+    name: Build and test (${{ matrix.platform }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
     env:
       TERMINAL_USER: railway-ci-test
       TERMINAL_PASSWORD: ci-only-smoke-test-Password-2026
+      IMAGE_TAG: railway-terminal-ci:${{ github.sha }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+
       - name: Build the Railway terminal image
-        run: docker build --pull --tag railway-terminal-ci:${{ github.sha }} .
+        run: docker buildx build --pull --platform "${{ matrix.platform }}" --load --tag "$IMAGE_TAG" .
 
       - name: Start the container and verify the web terminal
         shell: bash
@@ -41,11 +55,11 @@ jobs:
             --env TERMINAL_USER \
             --env TERMINAL_PASSWORD \
             --env PORT=8080 \
-            "railway-terminal-ci:${GITHUB_SHA}" >/dev/null
+            "$IMAGE_TAG" >/dev/null
 
           host_port="$(docker port "$container_name" 8080/tcp | sed 's/.*://')"
           ready=0
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 60); do
             if curl --silent --fail --user "${TERMINAL_USER}:${TERMINAL_PASSWORD}" \
               "http://127.0.0.1:${host_port}/" -o /tmp/ttyd-smoke.html 2>/dev/null; then
               ready=1
@@ -56,8 +70,17 @@ jobs:
 
           if [[ "$ready" != "1" ]] || [[ ! -s /tmp/ttyd-smoke.html ]] || ! grep -qi "ttyd" /tmp/ttyd-smoke.html; then
             echo "ERROR: terminal HTTP smoke test failed."
+            docker logs "$container_name" 2>&1 || true
             exit 1
           fi
+
+          process_uid="$(docker exec "$container_name" awk '/^Uid:/ {print $2}' /proc/1/status)"
+          if [[ "$process_uid" != "10001" ]]; then
+            echo "ERROR: ttyd is running with UID $process_uid instead of non-root UID 10001."
+            exit 1
+          fi
+
+          docker exec --user 10001:10001 "$container_name" sh -ec 'touch /data/.non-root-write-test && rm /data/.non-root-write-test'
 
           logs="$(docker logs "$container_name" 2>&1 || true)"
           credential_b64="$(printf '%s' "${TERMINAL_USER}:${TERMINAL_PASSWORD}" | base64 -w0)"
@@ -66,4 +89,14 @@ jobs:
             exit 1
           fi
 
-          echo "PASS: container starts, ttyd serves its web page, and logs do not contain the test credentials."
+          echo "PASS: ${{ matrix.platform }} image starts; ttyd authenticates, runs as UID 10001, /data is writable, and logs omit test credentials."
+
+      - name: Scan image for HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_TAG }}
+          format: table
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"

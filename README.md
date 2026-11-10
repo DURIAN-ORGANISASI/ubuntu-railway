@@ -39,7 +39,7 @@ Akses shell lewat ttyd, gunakan tool CLI umum, dan simpan file penting pada Rail
 <p align="center"><sub>Ilustrasi orisinal untuk dokumentasi; bukan screenshot resmi Ubuntu atau Railway.</sub></p>
 
 > [!WARNING]
-> **Bukan VPS penuh.** Railway menjalankan container aplikasi, bukan server virtual dengan akses ke host, desktop GUI, atau jaminan systemd penuh. Terminal web memiliki akses shell sebagai root di dalam container. Gunakan password kuat dan batasi akses ke domain publik.
+> **Bukan VPS penuh.** Railway menjalankan container aplikasi, bukan server virtual dengan akses ke host, desktop GUI, atau jaminan systemd penuh. Entrypoint memakai hak akses tinggi hanya untuk menyiapkan `/data`, lalu menjalankan `ttyd` dan sesi terminal sebagai user non-root khusus (UID 10001). Gunakan password kuat dan batasi akses ke domain publik.
 
 ## Coba sekarang
 
@@ -53,6 +53,7 @@ Akses shell lewat ttyd, gunakan tool CLI umum, dan simpan file penting pada Rail
 
 - **Ubuntu 26.04** sebagai image dasar.
 - **Terminal browser** menggunakan `ttyd` dengan autentikasi username/password.
+- **Sesi terminal non-root** memakai user khusus UID 10001; direktori `/data` dan file volume yang sudah ada disiapkan agar tetap dapat ditulis.
 - Mendukung arsitektur **AMD64 dan ARM64** melalui binary ttyd yang sesuai.
 - **Bash login shell** dengan banner sistem otomatis ketika sesi terminal dibuka.
 - Informasi sistem meliputi OS, kernel, arsitektur, uptime, CPU, RAM, disk, shell, dan timezone.
@@ -71,7 +72,7 @@ Alur sederhananya:
 1. Browser membuka domain HTTPS yang disediakan Railway.
 2. `ttyd` meminta username/password sebelum membuka sesi terminal.
 3. Bash login shell memulai sesi dan menampilkan banner sistem.
-4. Perintah berjalan di dalam container Ubuntu, dengan direktori kerja awal `/data`.
+4. Perintah berjalan di dalam container Ubuntu sebagai user non-root, dengan direktori kerja awal `/data`.
 5. Railway Volume opsional dipasang ke `/data` agar file kerja tersimpan melewati pembuatan ulang container.
 
 ## Cara pakai
@@ -120,7 +121,7 @@ date
 df -h /data
 ~~~
 
-Shell berjalan sebagai root **di dalam container**, bukan root pada host Railway. Tool seperti Git, Python, pip/venv, curl, dan compiler telah disediakan oleh image.
+Shell berjalan sebagai user non-root khusus **di dalam container** (UID 10001), bukan root pada host Railway. Tool seperti Git, Python, pip/venv, curl, dan compiler telah disediakan oleh image. Instalasi paket sistem yang memerlukan root membutuhkan image kustom.
 
 ## Volume persisten
 
@@ -147,7 +148,7 @@ File yang disimpan di luar mount point tidak otomatis persisten. Volume juga buk
 ## Privasi dan keamanan
 
 - **Lindungi domain publik.** Password kuat wajib; pertimbangkan access gateway tepercaya jika terminal menyimpan data sensitif.
-- **Shell root dalam container.** Perintah memiliki hak tinggi di container, jadi periksa perintah sebelum menjalankannya. Akses ke container bukan akses root ke host Railway.
+- **Sesi non-root.** Perintah terminal berjalan sebagai user UID 10001. Entrypoint hanya memakai hak root saat startup untuk menyiapkan kepemilikan `/data`, termasuk file volume lama; akses ini bukan root pada host Railway.
 - **Kredensial.** Jangan menyimpan password, API key, token bot, atau konfigurasi rahasia di repository, screenshot, maupun log publik.
 - **Log ttyd.** Image menjalankan ttyd pada debug level 3 untuk menekan NOTICE yang bisa menyertakan field kredensial. Level ERROR/WARN tetap aktif; ini bukan jaminan keamanan menyeluruh.
 - **Origin WebSocket.** Opsi `--check-origin` membatasi koneksi WebSocket dari origin browser yang tidak sesuai, tetapi tidak menggantikan autentikasi.
@@ -165,7 +166,7 @@ cd ubuntu-railway
 docker build --tag ubuntu-personal-railway .
 ~~~
 
-GitHub Actions menjalankan build Docker dan smoke test runtime. Workflow memeriksa apakah terminal merespons dengan autentikasi dan memastikan log tidak berisi password pengujian maupun bentuk Base64-nya. Pemeriksaan ini tidak membuktikan deployment Railway live sudah berhasil.
+GitHub Actions membangun dan menjalankan smoke test pada AMD64 serta ARM64, memverifikasi autentikasi, UID non-root, kemampuan menulis ke `/data`, dan memastikan log tidak memuat kredensial uji. Trivy juga memindai kerentanan HIGH/CRITICAL pada image (pelaporan, tidak memblokir build). Dependabot memeriksa pembaruan Docker base image dan GitHub Actions setiap minggu. Pemeriksaan ini tidak membuktikan deployment Railway live sudah berhasil.
 
 ### Struktur repository
 
@@ -189,6 +190,7 @@ ubuntu-railway/
 │   ├── architecture.en.svg
 │   └── SOURCES.md
 └── .github/
+    ├── dependabot.yml
     └── workflows/
         └── docker-build.yml
 ~~~

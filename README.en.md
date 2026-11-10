@@ -39,7 +39,7 @@ Access a shell through ttyd, use common CLI tools, and keep important files in a
 <p align="center"><sub>Original documentation illustration; not an official Ubuntu or Railway screenshot.</sub></p>
 
 > [!WARNING]
-> **This is not a full VPS.** Railway runs an application container, not a virtual server with host access, a desktop GUI, or guaranteed full systemd support. The web terminal has root privileges inside the container. Use a strong password and restrict access to the public domain.
+> **This is not a full VPS.** Railway runs an application container, not a virtual server with host access, a desktop GUI, or guaranteed full systemd support. The entrypoint uses elevated privileges only to prepare `/data`, then runs `ttyd` and terminal sessions as a dedicated non-root user (UID 10001). Use a strong password and restrict access to the public domain.
 
 ## Quick start
 
@@ -53,6 +53,7 @@ Access a shell through ttyd, use common CLI tools, and keep important files in a
 
 - **Ubuntu 26.04** base image.
 - **Browser terminal** powered by `ttyd` with username/password authentication.
+- **Non-root terminal sessions** run as a dedicated UID 10001 account; `/data` and existing Volume files are prepared to remain writable.
 - Supports **AMD64 and ARM64** using the matching ttyd binary.
 - **Bash login shell** with an automatic system banner when a terminal session opens.
 - System information includes OS, kernel, architecture, uptime, CPU, memory, disk, shell, and timezone.
@@ -69,7 +70,7 @@ Access a shell through ttyd, use common CLI tools, and keep important files in a
 1. The browser opens the HTTPS domain provided by Railway.
 2. `ttyd` requests a username and password before opening a terminal session.
 3. Bash login shell starts and displays the system banner.
-4. Commands run inside the Ubuntu container, with `/data` as the initial working directory.
+4. Commands run inside the Ubuntu container as an unprivileged user, with `/data` as the initial working directory.
 5. An optional Railway Volume mounted at `/data` keeps working files across container recreation.
 
 ## Deployment guide
@@ -118,7 +119,7 @@ date
 df -h /data
 ~~~
 
-The shell runs as root **inside the container**, not as root on the Railway host. Git, Python, pip/venv, curl, and compiler tools are included in the image.
+The shell runs as a dedicated unprivileged account **inside the container** (UID 10001), not as root on the Railway host. Git, Python, pip/venv, curl, and compiler tools are included in the image. Installing system packages that require root needs a custom image.
 
 ## Persistent storage
 
@@ -145,7 +146,7 @@ Files outside that mount point are not automatically persistent. A Volume is not
 ## Privacy and security
 
 - **Protect the public domain.** A strong password is required; consider a trusted access gateway if the terminal holds sensitive data.
-- **Root shell inside the container.** Commands have high privileges in the container. Review commands carefully; this is not host-root access.
+- **Unprivileged terminal session.** Terminal commands run as UID 10001. The entrypoint uses root privileges only during startup to prepare `/data` ownership, including existing Volume files; this does not grant root access to the Railway host.
 - **Credentials.** Never store passwords, API keys, bot tokens, or private configuration in the repository, screenshots, or public logs.
 - **ttyd logs.** The image runs ttyd at debug level 3 to suppress NOTICE messages that may include a credential field. ERROR/WARN messages remain enabled; this is not a complete security guarantee.
 - **WebSocket Origin.** `--check-origin` restricts WebSocket connections from mismatched browser origins but does not replace authentication.
@@ -163,7 +164,7 @@ cd ubuntu-railway
 docker build --tag ubuntu-personal-railway .
 ~~~
 
-GitHub Actions builds the Docker image and runs a runtime smoke test. It checks that authenticated terminal access works and that logs do not contain the test password or its Base64 form. These checks do not prove that a live Railway deployment is successful.
+GitHub Actions builds and runs smoke tests on AMD64 and ARM64, checking authentication, the non-root UID, `/data` write access, and that logs do not contain test credentials. Trivy also scans the image for HIGH/CRITICAL vulnerabilities (report-only; it does not block the build). Dependabot checks Docker base-image and GitHub Actions updates weekly. These checks do not prove that a live Railway deployment is successful.
 
 ### Repository structure
 
@@ -187,6 +188,7 @@ ubuntu-railway/
 │   ├── architecture.en.svg
 │   └── SOURCES.md
 └── .github/
+    ├── dependabot.yml
     └── workflows/
         └── docker-build.yml
 ~~~
